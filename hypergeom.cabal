@@ -18,6 +18,8 @@ library
   build-depends:       base >= 4.7 && < 5
                      , combinat
                      , array
+                     , vector
+                     , containers
   default-language:    Haskell2010
   ghc-options:         -Wall
 
