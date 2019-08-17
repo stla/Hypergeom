@@ -4,9 +4,10 @@ import           Data.Array
 import           Math.Combinat.Partitions.Integer.IntList (_dualPartition,
                                                            _isPartition,
                                                            _partitionsWithKParts)
-import Data.Sequence (Seq, update, (|>))
+import Data.Sequence (Seq, update, (|>), index)
 import qualified Data.Sequence as S
 import Data.List (nub, sort, sortOn, findIndex, elemIndex)
+import Data.Maybe
 
 _betaratio :: Fractional a => [Int] -> [Int] -> Int -> a -> a
 _betaratio kappa mu k alpha = alpha * prod1 * prod2 * prod3
@@ -154,3 +155,8 @@ dico' m n = go 1 S.empty
                           (b ++ map (\x -> bi - x) range1l)
                           (c ++ range1l) (end + l) dd ddlast
             else inner (i+1) a b c end (d |> Nothing) Nothing
+
+nkappa :: [Int] -> Int
+nkappa kappa = let d = dico' 10 7 in (if null kappa
+  then 0
+  else fromJust (d `S.index` nkappa(init kappa)) + last kappa - 1)
