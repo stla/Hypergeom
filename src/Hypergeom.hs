@@ -120,19 +120,37 @@ dico m n = map (\x -> elemIndex (x ++ [1]) parts') (filter (\y -> length y < n) 
 --           let dd = update (a!!i) (Just $ end+1) d in
 --           inner (i+1) (a ++ [end + 1 .. end + l]) (b ++ map (\x -> b!!i - x) [1 .. l]) (c ++ [1 .. l]) (end + l) dd
 --           else inner (i+1) a b c end d
+-- a008284_row n = a008284_tabl !! (n-1)
+a008284 :: [[Int]]
+a008284 = [1] : f [[1]]
+  where
+  f xss = ys : f (ys : xss)
+    where
+    ys = map sum (zipWith take [1..] xss) ++ [1]
+
+_P :: Int -> Int -> Int
+_P m n = sum (concatMap (take (min m n)) (take m a008284))
+
 dico' :: Int -> Int -> Seq (Maybe Int)
 dico' m n = go 1 S.empty
   where
+  pmn = Just $ _P m n
   go :: Int -> Seq (Maybe Int) -> Seq (Maybe Int)
   go k d'
     | k == n-1 = d'
-    | otherwise = go (k+1) (inner 0 [0] [m] [m] 0 d')
+    | otherwise = go (k+1) (inner 0 [0] [m] [m] 0 d' Nothing)
       where
-      inner :: Int -> [Int] -> [Int] -> [Int] -> Int -> Seq (Maybe Int) -> Seq (Maybe Int)
-      inner i a b c end d
-        | i >= length a = d
-        | otherwise = if b!!i > 0
-          then let l = min (b!!i) (c!!i) in
-          let dd = d |> (Just $ end+1) in
-          inner (i+1) (a ++ [end + 1 .. end + l]) (b ++ map (\x -> b!!i - x) [1 .. l]) (c ++ [1 .. l]) (end + l) dd
-          else inner (i+1) a b c end (d |> Nothing)
+      inner :: Int -> [Int] -> [Int] -> [Int] -> Int -> Seq (Maybe Int)
+            -> Maybe Int -> Seq (Maybe Int)
+      inner i a b c end d dlast
+        | dlast == pmn = d
+        | otherwise = let bi = b!!i in
+          if bi > 0
+            then let l = min bi (c!!i) in
+              let ddlast = Just $ end + 1 in
+              let dd = d |> ddlast in
+              let range1l = [1 .. l] in
+              inner (i+1) (a ++ [end + 1 .. end + l])
+                          (b ++ map (\x -> bi - x) range1l)
+                          (c ++ range1l) (end + l) dd ddlast
+            else inner (i+1) a b c end (d |> Nothing) Nothing
