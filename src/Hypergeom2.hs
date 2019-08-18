@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Hypergeom where
+module Hypergeom2 where
 import           Data.Array
 import           Data.List                                (elemIndex, findIndex,
                                                            nub, sort, sortOn)
@@ -68,62 +68,6 @@ hypergeoI m alpha a b n x =
         else s
       s'' = s' + z'
 
-dico :: Int -> Int -> [Maybe Int]
-dico m n = map (\x -> elemIndex (x ++ [1]) parts') (filter (\y -> length y < n) parts')
-  where
-  parts =
-     nub $ concatMap (\i -> concatMap (\j -> _partitionsWithKParts (min j i) i) [1 .. n]) [1 .. m]
-  parts' = sortOn length $ sort parts
-      -- D <- rep(NA_integer_, Pmn)
-      -- Last <- t(as.integer(c(0,m,m))) # il faut m > n (sinon l = 0 et Last est vide)
-      -- fin <- 0L
-      -- for(. in 1L:n){
-      --   NewLast <- matrix(NA_integer_, nrow = 0L, ncol = 3L)
-      --   for(i in 1L:nrow(Last)){
-      --     manque <- Last[i,2L]
-      --     l <- min(manque, Last[i,3L])
-      --     if(l > 0L){
-      --       D[Last[i,1L]+1L] <- fin + 1L
-      --       s <- 1L:l
-      --       NewLast <- rbind(NewLast, cbind(fin+s, manque-s, s))
-      --       fin <- fin + l
-      --     }
-      --   }
-      --   Last <- NewLast
-      -- }
--- dico' :: Int -> Int -> Seq (Maybe Int)
--- dico' m n = go 1 [0] [m] [m] 0 (S.fromList (replicate 15 Nothing))
---   where
---   go :: Int -> [Int] -> [Int] -> [Int] -> Int -> Seq Int -> Seq Int
---   go k a' b' c' end' d'
---     | k == n = d'
---     | otherwise = inner 0 a' b' c' end' d'
---       where
---       inner :: Int -> [Int] -> [Int] -> [Int] -> Int -> Seq Int -> Seq Int
---       inner i a b c end d
---         | i == length a = d
---         | otherwise = if b!!i > 0
---           then let l = min ((b!!i) (c!!i)) in
---           let dd = update (a!!i) (end+1) d in
---           inner (i+1) (a ++ [end + 1 .. end + l]) (b ++ map (\x -> b!!i - x) [1 .. l]) (c ++ [1 .. l]) (end +l) dd
---           else inner (i+1) a b c end d
--- dico' :: Int -> Int -> Seq (Maybe Int)
--- dico' m n = go 1 (S.fromList (replicate 15 Nothing)) -- 15 to be replaced
---   where
---   go :: Int -> Seq (Maybe Int) -> Seq (Maybe Int)
---   go k d'
---     | k == n-1 = d'
---     | otherwise = go (k+1) (inner 0 [0] [m] [m] 0 d')
---       where
---       inner :: Int -> [Int] -> [Int] -> [Int] -> Int -> Seq (Maybe Int) -> Seq (Maybe Int)
---       inner i a b c end d
---         | i == length a = d
---         | otherwise = if b!!i > 0
---           then let l = min (b!!i) (c!!i) in
---           let dd = update (a!!i) (Just $ end+1) d in
---           inner (i+1) (a ++ [end + 1 .. end + l]) (b ++ map (\x -> b!!i - x) [1 .. l]) (c ++ [1 .. l]) (end + l) dd
---           else inner (i+1) a b c end d
--- a008284_row n = a008284_tabl !! (n-1)
 a008284 :: [[Int]]
 a008284 = [1] : f [[1]]
   where
@@ -134,10 +78,9 @@ a008284 = [1] : f [[1]]
 _P :: Int -> Int -> Int
 _P m n = sum (concatMap (take (min m n)) (take m a008284))
 
-dico' :: Int -> Int -> Seq (Maybe Int)
-dico' m n = go 1 S.empty
+_dico :: Int -> Int -> Int -> Seq (Maybe Int)
+_dico pmn m n = go 1 S.empty
   where
-  pmn = Just $ _P m n
   go :: Int -> Seq (Maybe Int) -> Seq (Maybe Int)
   go k d'
     | k == n-1 = d'
@@ -146,7 +89,7 @@ dico' m n = go 1 S.empty
       inner :: Int -> [Int] -> [Int] -> [Int] -> Int -> Seq (Maybe Int)
             -> Maybe Int -> Seq (Maybe Int)
       inner i a b c end d dlast
-        | dlast == pmn = d
+        | dlast == Just pmn = d
         | otherwise = let bi = b!!i in
           if bi > 0
             then let l = min bi (c!!i) in
@@ -158,12 +101,46 @@ dico' m n = go 1 S.empty
                           (c ++ range1l) (end + l) dd ddlast
             else inner (i+1) a b c end (d |> Nothing) Nothing
 
-nkappa :: [Int] -> Int
-nkappa kappa = let d = dico' 10 7 in (if null kappa
+_nkappa :: Seq (Maybe Int) -> [Int] -> Int
+_nkappa dico kappa = if null kappa
   then 0
-  else fromJust (d `S.index` nkappa(init kappa)) + last kappa - 1)
+  else fromJust (dico `S.index` _nkappa dico (init kappa)) + last kappa - 1
 
 
--- hypergeom :: forall a. Fractional a => Int -> a -> [a] -> [a] -> [a] -> a
--- hypergeom m alpha a b x = xxx
---   where
+hypergeom :: forall a. Fractional a => Int -> a -> [a] -> [a] -> [a] -> a
+hypergeom m alpha a b x = alpha
+  where
+  n = length x
+  pmn = _P m n
+  dico = _dico pmn m n
+  kappa = S.empty
+  xrange = [1 .. n]
+  line1 = zipWith (\i u -> ((1,i), u)) xrange (scanl1 (+) x)
+  otherlines = concatMap (\j -> [((j,i),0) | i <- xrange]) [2 .. pmn]
+  arr = array ((1,1), (pmn,n)) (line1 ++ otherlines)
+  --
+  summation :: Fractional a => Int -> a -> Int -> [Int] -> Array (Int,Int) a -> a
+  summation i z j kappa jarray = go 1 z 0
+    where
+    go :: Int -> a -> a -> a
+    go kappai zz s
+      | i == 0 && kappai > j || i>0 && kappai > min (last kappa) j = s
+      | otherwise = go (kappai + 1) z' s''
+      where
+      kappa' = kappa ++ [kappai]
+      nkappa = _nkappa dico kappa'
+      z' = zz * _T alpha a b (filter (> 0) kappa')
+      jarray' = if nkappa > 1 && (length kappa == 1 || kappa!!1 == 0)
+        then
+          let newval = x!!0 * (1 + alpha * fromIntegral (kappa!!0 - 1)) * jarray ! (nkappa-1,1) in
+          jarray // [((nkappa,1), newval)]
+        else jarray
+      --  for(t in 2L:n) jack(0L, 1, 0L, t, kappa, Nkappa)
+      jj :: Int -> Array (Int, Int) a -> Array (Int, Int) a
+      jj t = jack 0 1 0 t kappa nkappa
+      jarray'' = foldr jj jarray' [2 .. n]
+      s' = s + z' * jarray'' ! (nkappa, n)
+      s'' = if j > kappai && i <= n
+        then s' + summation (i+1) z' (j-kappai) kappa' jarray''
+        else s'
+      s''' = s''
