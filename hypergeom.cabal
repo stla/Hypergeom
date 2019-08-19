@@ -18,6 +18,7 @@ library
                      , Hypergeom2
                      , Hypergeom3
                      , Hypergeom4
+                     , Hypergeom5
   build-depends:       base >= 4.7 && < 5
                      , combinat
                      , array

@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Hypergeom4 where
+module Hypergeom5 where
 import           Control.Lens                             hiding (iconcatMap, (|>))
 import           Data.Array
 import           Data.List                                (elemIndex, findIndex,
@@ -111,7 +111,7 @@ cleanPart kappa =
   let i = elemIndex 0 kappa in
   if isJust i then take (fromJust i) kappa else kappa
 
-hypergeom :: forall a. (Fractional a, Show a, Ord a) => Int -> a -> [a] -> [a] -> [a] -> a
+hypergeom :: forall a. Fractional a => Int -> a -> [a] -> [a] -> [a] -> a
 hypergeom m alpha a b x = summation 0 1 m kappa0 arr
   where
   n = length x
@@ -124,13 +124,12 @@ hypergeom m alpha a b x = summation 0 1 m kappa0 arr
   arr = array ((1,1), (pmn,n)) (line1 ++ otherlines)
   --
   summation :: Fractional a => Int -> a -> Int -> [Int] -> Array (Int,Int) a -> a
-  summation i z jj kappa jarray =
-    let r = if i == 0 then jj else min (last kappa) jj in go r 1 z 0
+  summation i z jj kappa jarray = go 1 z 0
     where
-    go :: Int -> Int -> a -> a -> a
-    go r kappai zz s
-      | kappai > r = s
-      | otherwise = go r (kappai + 1) z' s'''
+    go :: Int -> a -> a -> a
+    go kappai zz s
+      | i == 0 && kappai > jj || i>0 && kappai > min (last kappa) jj = s
+      | otherwise = go (kappai + 1) z' s'''
       where
       kappa' = cleanPart $ (element i .~ kappai) (kappa ++ repeat 0)
       nkappa = _nkappa dico kappa'
@@ -144,39 +143,47 @@ hypergeom m alpha a b x = summation 0 1 m kappa0 arr
 --      jac :: Int -> Array (Int, Int) a -> Array (Int, Int) a
 --      jac t' = jack 0 1 0 t' kappa' nkappa
 --        where
-      jack :: Int -> a -> Int -> Int -> [Int] -> Int -> Array (Int,Int) a -> (Array (Int,Int) a, (Int,Int))
-      jack k beta c t mu nmu aa = (go' (max k 1) aa, (0,t))
+      jack :: Bool -> Int -> a -> Int -> Int -> [Int] -> Int -> Array (Int,Int) a -> Array (Int,Int) a
+      jack b k beta c t mu nmu aa =
+        let add = if k == 0 then (if nkappa > 1 then xxx ! (nkappa,t-1) else 0) else beta * x!!(t-1)^c * xxx ! (nmuu, t-1) in
+          xxx // [((nkappa,t), xxx ! (nkappa,t) + add)]
         where
+        xxx = go' (max k 1) aa
+        nmuu = _nkappa dico (cleanPart mu)
         go' :: Int -> Array (Int,Int) a -> Array (Int,Int) a
         go' j jarr
           | j > length (filter (>0) mu) = jarr
-          | otherwise = go' (j+1) (if length mu == j || mu!!(j-1) > mu!!j
-            then
-              let mu' = (element (j-1) .~ mu!!(j-1)-1) mu in
-              let gamma = beta * _betaratio kappa' mu j alpha in
-              if mu'!!(j-1) > 0
-                then
-                  fst $ jack j gamma (c+1) t mu (_nkappa dico (cleanPart mu)) jarr
-                else
-                  if nkappa == 1
-                    then
-                      jarr
-                    else
-                      let jjj = if any (>0) mu' then jarr ! (_nkappa dico (cleanPart mu'), t-1) else 1 in
-                      jarr // [((nkappa,t), jarr ! (nkappa,t) + gamma*jjj*x!!(t-1)^(c+1))]
-            else
-              jarr)
-      go'' :: Int -> (Array (Int,Int) a, (Int,Int)) -> (Array (Int,Int) a, (Int,Int))
+          | otherwise = xxxx
+              where
+              mu' = (element (j-1) .~ mu!!(j-1)-1) mu
+              xxxx =
+                go' (j+1) (if length mu == j || mu!!(j-1) > mu!!j
+                  then
+                    let gamma = beta * _betaratio kappa' mu j alpha in
+                    if mu'!!(j-1) > 0
+                      then
+                        jack False j gamma (c+1) t mu' (_nkappa dico (cleanPart mu')) jarr
+                      else
+                        if nkappa == 1
+                          then
+                            jarr
+                          else
+                            let jjj = if any (>0) mu' then jarr ! (_nkappa dico (cleanPart mu'), t-1) else 1 in
+                            jarr // [((nkappa,t), jarr ! (nkappa,t) + gamma*jjj*x!!(t-1)^(c+1))]
+                  else
+                    jarr)
+--      jarray'' = jarray' -- foldr jac jarray' [2 .. n]
+      go'' :: Int -> Array (Int,Int) a -> Array (Int,Int) a
       go'' tt aa
         | tt == n+1 = aa
-        | otherwise = go'' (tt+1) (jack 0 1 0 tt kappa' nkappa (fst aa))
-      (jarray'', (k',t')) = go'' 2 (jarray', (0,2))
-      jarray''' = let add = if k' == 0 then (if nkappa > 1 then jarray'' ! (nkappa,n-1) else 10) else 1 in -- beta * x!!(t-1)^c * jjarr ! (nmu, t-1) in
-        jarray'' // [((nkappa,n), jarray'' ! (nkappa,n) + add)]
-      s' = s + z' * jarray''' ! (nkappa, n)
+        | otherwise = go'' (tt+1) (jack False 0 1 0 tt kappa' nkappa aa)
+      jarray'' = go'' 2 jarray'
+--      jarray''' = jack 0 1 0 2 kappa' nkappa jarray'
+--      jarray'' = jack 0 1 0 3 kappa' nkappa jarray'''
+      s' = s + z' * jarray'' ! (nkappa, n)
       s'' = if jj > kappai && i <= n
         then
-          s' + summation (i+1) z' (jj-kappai) kappa' jarray'''
+          s' + summation (i+1) z' (jj-kappai) kappa' jarray''
         else
           s'
       s''' = s''
