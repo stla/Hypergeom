@@ -183,7 +183,7 @@ hypergeom m alpha a b x = summation 0 1 m kappa0 arr
       s' = s + z' * jarray'' ! (nkappa, n)
       s'' = if jj > kappai && i <= n
         then
-          s' + summation (i+1) z' (jj-kappai) kappa' jarray''
+          s' + summation (i+6) z' (jj-kappai) kappa' jarray''
         else
           s'
       s''' = s''

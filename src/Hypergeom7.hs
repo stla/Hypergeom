@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
-module Hypergeom6 where
+module Hypergeom7 where
 import           Control.Lens                             hiding (iconcatMap, (|>))
 import           Data.Array
 import           Data.List                                (elemIndex, findIndex,
@@ -128,7 +128,7 @@ hypergeom m alpha a b x = (summation 0 1 m kappa0 arr0)
   summation i z jj kappa jarray = go 1 z 0
     where
     go :: Int -> a -> a -> (a, String)
-    go kappai zz s
+    go kappai !zz !s
       | i == 0 && kappai > jj || i>0 && kappai > min (last kappa) jj = (s, show jarray'')
       | otherwise = go (kappai + 1) z' s''
       where
@@ -140,39 +140,10 @@ hypergeom m alpha a b x = (summation 0 1 m kappa0 arr0)
           let newval = x!!0 * (1 + alpha * fromIntegral (kappa'!!0 - 1)) * jarray ! (nkappa-1,1) in
           jarray // [((nkappa,1), newval)]
         else jarray
-      --
-      jack :: Int -> a -> Int -> Int -> [Int] -> Array (Int,Int) a -> Array (Int,Int) a
-      jack k beta c t mu aa =
-        let add = if k == 0 then (if nkappa > 1 then arr ! (nkappa,t-1) else 0) else beta * x!!(t-1)^c * arr ! (nmu, t-1) in
-          arr // [((nkappa,t), arr ! (nkappa,t) + add)]
-        where
-        arr = go' (max k 1) aa
-        nmu = _nkappa dico (cleanPart mu)
-        go' :: Int -> Array (Int,Int) a -> Array (Int,Int) a
-        go' j !jarr
-          | j > length (cleanPart mu) = jarr
-          | otherwise =
-              go' (j+1) (if (length mu == j && mu!!(j-1) > 0) || mu!!(j-1) > mu!!j
-                then
-                  let gamma = beta * _betaratio kappa' mu j alpha in
-                  let mu' = (element (j - 1) .~ mu !! (j - 1) - 1) mu in
-                  if mu'!!(j-1) > 0
-                    then 
-                      jack j gamma (c+1) t mu' jarr 
-                    else
-                      if nkappa == 1
-                        then
-                          jarr
-                        else
-                          let jjj = if any (>0) mu' then jarr ! (_nkappa dico (cleanPart mu'), t-1) else 1 in
-                          jarr // [((nkappa,t), jarr ! (nkappa,t) + gamma*jjj*x!!(t-1)^(c+1))]
-                  else
-                    jarr)
-      --
       go'' :: Int -> Array (Int,Int) a -> Array (Int,Int) a
       go'' tt !aa
         | tt == n+1 = aa
-        | otherwise = go'' (tt+1) (jack 0 1 0 tt kappa' aa)
+        | otherwise = go'' (tt+1) (jack 0 1 0 tt kappa' aa nkappa kappa')
       -- j1 = jack 0 1 0 2 kappa' jarray'
       -- jarray'' = jack 0 1 0 3 kappa' j1
       jarray'' = go'' 2 jarray'
@@ -182,3 +153,43 @@ hypergeom m alpha a b x = (summation 0 1 m kappa0 arr0)
           s' + (fst $ summation (i+1) z' (jj-kappai) kappa' jarray'') 
         else
           s'
+    --
+    --
+    jack ::
+        Int -> a -> Int -> Int -> [Int] -> Array (Int, Int) a -> Int -> [Int] -> Array (Int, Int) a
+    jack k beta c t mu aa nkappa kappa' =
+      let add = if k == 0 then (if nkappa > 1 then arr ! (nkappa, t - 1) else 0) else beta * x !! (t - 1) ^ c * arr ! (nmu, t - 1) in 
+      arr // [((nkappa, t), arr ! (nkappa, t) + add)]
+      where
+        arr = go' (max k 1) aa
+        nmu = _nkappa dico (cleanPart mu)
+        go' :: Int -> Array (Int, Int) a -> Array (Int, Int) a
+        go' j !jarr
+          | j > length (cleanPart mu) = jarr
+          | otherwise =
+            go'
+            (j + 1)
+            (if (length mu == j && mu !! (j - 1) > 0) || mu !! (j - 1) > mu !! j
+                then let gamma = beta * _betaratio kappa' mu j alpha
+                    in let mu' = (element (j - 1) .~ mu !! (j - 1) - 1) mu
+                        in if mu' !! (j - 1) > 0
+                            then jack j gamma (c + 1) t mu' jarr nmu kappa'
+                            else if nkappa == 1
+                                    then jarr
+                                    else let jjj =
+                                                if any (> 0) mu'
+                                                then jarr !
+                                                        ( _nkappa
+                                                            dico
+                                                            (cleanPart mu')
+                                                        , t - 1)
+                                                else 1
+                                        in jarr //
+                                            [ ( (nkappa, t)
+                                                , jarr ! (nkappa, t) +
+                                                gamma * jjj *
+                                                x !! (t - 1) ^ (c + 1))
+                                            ]
+                else jarr)
+      --
+
