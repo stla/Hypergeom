@@ -1,7 +1,7 @@
 name:                hypergeom
 version:             0.1.0.0
 -- synopsis:
--- description:
+description:         Hypergeometric function of a matrix argument
 homepage:            https://github.com/stla/hypergeom#readme
 license:             GPL-3
 author:              Stéphane Laurent
