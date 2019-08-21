@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
-module Hypergeom8 where
+module Hypergeom9 where
 import           Control.Lens                             hiding (iconcatMap, (|>))
 import           Control.Monad                            (when)
 import           Data.Array
@@ -115,7 +115,7 @@ cleanPart kappa =
   if isJust i then take (fromJust i) kappa else kappa
 
 summation :: forall a. (Fractional a, Show a) => Int -> [a] -> [a] -> [a] -> Seq (Maybe Int) -> Int -> a -> Int -> a -> Int -> [Int] -> IOArray (Int, Int) a -> IO a
-summation m a b x dico n alpha i z j kappa jarray = do
+summation m a b x dico n alpha i z j kappa jarray = do -- m inutile
   let go :: Int -> a -> a -> IO a
       go kappai !z' !s
         | i == n || i == 0 && kappai > j || i > 0 && kappai > min (last kappa) j = return s
@@ -123,8 +123,6 @@ summation m a b x dico n alpha i z j kappa jarray = do
           let kappa' = cleanPart $ (element i .~ kappai) (kappa ++ repeat 0)
               nkappa = _nkappa dico kappa'        
               z'' = z' * _T alpha a b kappa'
-          putStrLn "kappa:"
-          print kappa'
           when (nkappa>1 && (length kappa' == 1 || kappa'!!1 == 0)) $ do 
             entry <- readArray jarray (nkappa-1, 1) 
             let newval = x!!0 * (1 + alpha * fromIntegral (kappa' !! 0 - 1)) * entry
@@ -141,15 +139,13 @@ summation m a b x dico n alpha i z j kappa jarray = do
           if j > kappai && i <= n 
             then do 
               s'' <- summation m a b x dico n alpha (i+1) z'' (j-kappai) kappa' jarray
-              go (kappai + 1) z'' (s' + s'') -- il faut faire un IORef pour summation ? 
-            else -- je ne me sers pas de go (kappai +1) !!
+              go (kappai + 1) z'' (s' + s'') 
+            else 
               go (kappai +1) z'' s'
   go 1 z 0
 
 jack :: Fractional a => a -> [a] -> Seq (Maybe Int) -> Int -> a -> Int -> Int -> [Int] -> IOArray (Int,Int) a -> [Int] -> Int -> IO ()
 jack alpha x dico k beta c t mu jarray kappa nkappa = do 
-  putStrLn("mu:")
-  print mu
   let i0 = max k 1
       i1 = length (cleanPart mu)
       go :: Int -> IO ()
@@ -159,11 +155,7 @@ jack alpha x dico k beta c t mu jarray kappa nkappa = do
           when (length mu == i && mu!!(i-1) > 0 || mu!!(i-1) > mu!!i) $ do
             let gamma = beta * _betaratio kappa mu i alpha
                 mu' = cleanPart $ (element (i - 1) .~ mu!!(i - 1) - 1) mu
-            putStrLn("(mu', i-1):")
-            print (mu', i-1)
-            let nmu = _nkappa dico mu'
-            putStrLn("nmu:")
-            print nmu
+                nmu = _nkappa dico mu'
             if not (null mu') && length mu' >= i && mu'!!(i-1) > 0 
               then do
                 jack alpha x dico i gamma (c+1) t mu' jarray kappa nkappa
@@ -173,8 +165,6 @@ jack alpha x dico k beta c t mu jarray kappa nkappa = do
                 when (nkappa > 1) $ do
                   entry' <- readArray jarray (nkappa, t)
                   writeArray jarray (nkappa, t) (entry' + gamma * f * x!!(t-1)^(c+1))
-                  putStrLn "(nkappa,t):"
-                  print (nkappa,t)
           go (i+1)
   _ <- go i0
   entry1 <- readArray jarray (nkappa, t)
@@ -190,7 +180,7 @@ jack alpha x dico k beta c t mu jarray kappa nkappa = do
 
 
 
-hypergeom :: forall a. (Fractional a, Show a) => Int -> a -> [a] -> [a] -> [a] -> IO (String, String)
+hypergeom :: forall a. (Fractional a, Show a) => Int -> a -> [a] -> [a] -> [a] -> IO (a)
 hypergeom m alpha a b x = do 
   let n = length x
       pmn = _P m n 
@@ -201,7 +191,5 @@ hypergeom m alpha a b x = do
       arr0 = array ((1, 1), (pmn, n)) (line1 ++ otherlines)
   jarray <- thaw arr0
   s <- summation m a b x dico n alpha 0 1 m [] jarray
-  jj <- freeze jarray :: IO (Array (Int, Int) a)
-  return (show s, show jj)
-
+  return $ s + 1
 
