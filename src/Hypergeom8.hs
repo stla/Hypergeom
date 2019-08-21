@@ -114,15 +114,17 @@ cleanPart kappa =
   let i = elemIndex 0 kappa in
   if isJust i then take (fromJust i) kappa else kappa
 
-summation :: forall a. Fractional a => [a] -> [a] -> [a] -> Seq (Maybe Int) -> Int -> a -> Int -> a -> Int -> [Int] -> IOArray (Int, Int) a -> IO a
-summation a b x dico n alpha i z j kappa jarray = do
+summation :: forall a. (Fractional a, Show a) => Int -> [a] -> [a] -> [a] -> Seq (Maybe Int) -> Int -> a -> Int -> a -> Int -> [Int] -> IOArray (Int, Int) a -> IO a
+summation m a b x dico n alpha i z j kappa jarray = do
   let go :: Int -> a -> a -> IO a
       go kappai !z' !s
-        | i == 0 && kappai > j || i > 0 && kappai > min (last kappa) j = return s
+        | i == m-2 || i == 0 && kappai > j || i > 0 && kappai > min (last kappa) j = return s
         | otherwise = do
           let kappa' = cleanPart $ (element i .~ kappai) (kappa ++ repeat 0)
               nkappa = _nkappa dico kappa'        
               z'' = z' * _T alpha a b kappa'
+          putStrLn "kappa:"
+          print kappa'
           when (nkappa>1 && (length kappa' == 1 || kappa'!!1 == 0)) $ do 
             entry <- readArray jarray (nkappa-1, 1) 
             let newval = x!!0 * (1 + alpha * fromIntegral (kappa' !! 0 - 1)) * entry
@@ -135,36 +137,45 @@ summation a b x dico n alpha i z j kappa jarray = do
                   go' (t+1)
           _ <- go' 2
           entry' <- readArray jarray (nkappa, n)
-          --let s' = s + z'' * entry'
+          let s' = s + z'' * entry'
           if j > kappai && i <= n 
             then do 
-              s' <- summation a b x dico n alpha (i+1) z'' (j-kappai) kappa' jarray
-              return $ s' + s + z'' * entry'
-            else 
-              return $ s + z'' * entry'
+              s'' <- summation m a b x dico n alpha (i+1) z'' (j-kappai) kappa' jarray
+              go (kappai + 1) z'' (s' + s'') -- il faut faire un IORef pour summation ? 
+            else -- je ne me sers pas de go (kappai +1) !!
+              go (kappai +1) z'' s'
   go 1 z 0
 
 jack :: Fractional a => a -> [a] -> Seq (Maybe Int) -> Int -> a -> Int -> Int -> [Int] -> IOArray (Int,Int) a -> [Int] -> Int -> IO ()
 jack alpha x dico k beta c t mu jarray kappa nkappa = do 
+  putStrLn("mu:")
+  print mu
   let i0 = max k 1
       i1 = length (cleanPart mu)
       go :: Int -> IO ()
       go i 
-        | i == i1 = return ()
+        | i == i1+1 = return ()
         | otherwise = do 
           when (length mu == i && mu!!(i-1) > 0 || mu!!(i-1) > mu!!i) $ do
             let gamma = beta * _betaratio kappa mu i alpha
-                mu' = (element (i - 1) .~ mu!!(i - 1) - 1) mu
-                nmu = _nkappa dico mu'
-            if mu'!!(i-1) > 0 
+                mu' = cleanPart $ (element (i - 1) .~ mu!!(i - 1) - 1) mu
+            putStrLn("(mu', i-1):")
+            print (mu', i-1)
+            let nmu = _nkappa dico mu'
+            putStrLn("nmu:")
+            print nmu
+            if not (null mu') && length mu' >= i && mu'!!(i-1) > 0 
               then do
                 jack alpha x dico i gamma (c+1) t mu' jarray kappa nkappa
               else do
-                entry <- readArray jarray (nmu, t-1)
+                entry <- readArray jarray (max nmu 1, t-1)
                 let f = if any (>0) mu' then entry else 1
                 when (nkappa > 1) $ do
                   entry' <- readArray jarray (nkappa, t)
                   writeArray jarray (nkappa, t) (entry' + gamma * f * x!!(t-1)^(c+1))
+                  putStrLn "(nkappa,t):"
+                  print (nkappa,t)
+          go (i+1)
   _ <- go i0
   entry1 <- readArray jarray (nkappa, t)
   if k == 0 
@@ -173,13 +184,13 @@ jack alpha x dico k beta c t mu jarray kappa nkappa = do
         entry2 <- readArray jarray (nkappa, t-1)
         writeArray jarray (nkappa, t) (entry1 + entry2)
     else do 
-      entry2 <- readArray jarray (nkappa, t - 1) 
+      entry2 <- readArray jarray (_nkappa dico mu, t - 1) 
       writeArray jarray (nkappa, t) (entry1 + beta * x!!(t-1)^c * entry2)
 
 
 
 
-hypergeom :: forall a. (Fractional a, Show a) => Int -> a -> [a] -> [a] -> [a] -> IO a
+hypergeom :: forall a. (Fractional a, Show a) => Int -> a -> [a] -> [a] -> [a] -> IO (String, String)
 hypergeom m alpha a b x = do 
   let n = length x
       pmn = _P m n 
@@ -189,6 +200,8 @@ hypergeom m alpha a b x = do
       otherlines = concatMap (\j -> [((j, i), 0) | i <- xrange]) [2 .. pmn]
       arr0 = array ((1, 1), (pmn, n)) (line1 ++ otherlines)
   jarray <- thaw arr0
-  summation a b x dico n alpha 0 1 m [] jarray
+  s <- summation m a b x dico n alpha 0 1 m [] jarray
+  jj <- freeze jarray :: IO (Array (Int, Int) a)
+  return (show s, show jj)
 
 
