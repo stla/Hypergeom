@@ -82,7 +82,7 @@ _dico :: Int -> Int -> Seq (Maybe Int)
 _dico pmn m = go False S.empty
   where
   go :: Bool -> Seq (Maybe Int) -> Seq (Maybe Int)
-  go k d'
+  go k !d'
     | k = d' 
     | otherwise = inner 0 [0] [m] [m] 0 d' Nothing
       where
@@ -117,14 +117,16 @@ summation :: forall a. Fractional a => Int -> [a] -> [a] -> [a]
 summation m a b x dico n alpha i z j kappa jarray = do -- m inutile
   let go :: Int -> a -> a -> IO a
       go kappai !z' !s
-        | i == n || i == 0 && kappai > j || i > 0 && kappai > min (last kappa) j = return s
+        | i == n || 
+          i == 0 && kappai > j || 
+          i > 0 && kappai > min (last kappa) j = return s
         | otherwise = do
           let kappa' = cleanPart $ (element i .~ kappai) (kappa ++ repeat 0)
               nkappa = _nkappa dico kappa'        
               z'' = z' * _T alpha a b kappa'
           when (nkappa>1 && (length kappa' == 1 || kappa'!!1 == 0)) $ do 
             entry <- readArray jarray (nkappa-1, 1) 
-            let newval = x!!0 * (1 + alpha * fromIntegral (kappa' !! 0 - 1)) * entry
+            let newval = x!!0 * (1 + alpha * fromIntegral (kappa'!!0 - 1)) * entry
             writeArray jarray (nkappa, 1) newval
           let go' :: Int -> IO ()
               go' t 
@@ -137,10 +139,11 @@ summation m a b x dico n alpha i z j kappa jarray = do -- m inutile
           let s' = s + z'' * entry'
           if j > kappai && i <= n 
             then do 
-              s'' <- summation m a b x dico n alpha (i+1) z'' (j-kappai) kappa' jarray
+              s'' <- summation m a b x dico n alpha (i+1) z'' (j-kappai) 
+                               kappa' jarray
               go (kappai + 1) z'' (s' + s'') 
             else 
-              go (kappai +1) z'' s'
+              go (kappai + 1) z'' s'
   go 1 z 0
 
 jack :: Fractional a => a -> [a] -> Seq (Maybe Int) -> Int -> a -> Int -> Int
@@ -152,9 +155,10 @@ jack alpha x dico k beta c t mu jarray kappa nkappa = do
       go i 
         | i == i1+1 = return ()
         | otherwise = do 
-          when (length mu == i && mu!!(i-1) > 0 || mu!!(i-1) > mu!!i) $ do
+--          when (length mu == i && mu!!(i-1) > 0 || mu!!(i-1) > mu!!i) $ do
+          when (length mu == i || mu!!(i-1) > mu!!i) $ do
             let gamma = beta * _betaratio kappa mu i alpha
-                mu' = cleanPart $ (element (i - 1) .~ mu!!(i - 1) - 1) mu
+                mu' = cleanPart $ (element (i-1) .~ mu!!(i-1) - 1) mu
                 nmu = _nkappa dico mu'
             if not (null mu') && length mu' >= i && mu'!!(i-1) > 0 
               then do
@@ -183,7 +187,7 @@ jack alpha x dico k beta c t mu jarray kappa nkappa = do
       writeArray jarray (nkappa, t) (entry1 + beta * x!!(t-1)^c * entry2)
 
 
-hypergeom :: forall a. Fractional a => Int -> a -> [a] -> [a] -> [a] -> IO (a)
+hypergeom :: forall a. Fractional a => Int -> a -> [a] -> [a] -> [a] -> IO a
 hypergeom m alpha a b x = do 
   let n = length x
       pmn = _P m n 
@@ -192,6 +196,7 @@ hypergeom m alpha a b x = do
       line1 = zipWith (\i u -> ((1, i), u)) xrange (scanl1 (+) x)
       otherlines = concatMap (\j -> [((j, i), 0) | i <- xrange]) [2 .. pmn]
       arr0 = array ((1, 1), (pmn, n)) (line1 ++ otherlines)
+  jarray <- thaw arr0
   s <- summation m a b x dico n alpha 0 1 m [] jarray
   return $ s + 1
 
