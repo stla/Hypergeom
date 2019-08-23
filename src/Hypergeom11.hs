@@ -38,11 +38,12 @@ _betaratio kappa mu k alpha = alpha * prod1 * prod2 * prod3
         (\s m -> t - fromIntegral s + alpha * fromIntegral m)
         ss
         (S.take (k - 1) mu)
-    mu' = S.take (mu `index` (k - 1) - 1) (_dualPartition mu)
+    l = mu `index` (k - 1) - 1
+    mu' = S.take l (_dualPartition mu)
     w =
       S.zipWith
         (\s m -> fromIntegral m - t - alpha * fromIntegral s)
-        (S.fromList [1 .. mu `index` (k - 1) - 1])
+        (S.fromList [1 .. l])
         mu'
     prod1 = product $ fmap (\x -> x / (x + alpha - 1)) u
     prod2 = product $ fmap (\x -> (x + alpha) / x) v
@@ -99,7 +100,7 @@ _dico pmn m = go False S.empty
           -> Seq (Maybe Int)
           -> Maybe Int
           -> Seq (Maybe Int)
-        inner i a b c end d dlast
+        inner i !a !b !c !end !d !dlast
           | dlast == Just pmn = go True d
           | otherwise =
             let bi = b !! i
