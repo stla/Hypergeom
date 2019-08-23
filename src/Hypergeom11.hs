@@ -132,8 +132,7 @@ cleanPart kappa =
 
 summation ::
      forall a. (Fractional a, MArray IOUArray a IO)
-  => Int
-  -> [a]
+  => [a]
   -> [a]
   -> [a]
   -> Seq (Maybe Int)
@@ -145,7 +144,7 @@ summation ::
   -> Seq Int
   -> IOUArray (Int, Int) a
   -> IO a
-summation m a b x dico n alpha i z j kappa jarray -- m inutile
+summation a b x dico n alpha i z j kappa jarray 
  = do
   let lkappa = kappa `index` (S.length kappa - 1)
   let go :: Int -> a -> a -> IO a
@@ -153,7 +152,7 @@ summation m a b x dico n alpha i z j kappa jarray -- m inutile
         | i == n || i == 0 && kappai > j || i > 0 && kappai > min lkappa j =
           return s
         | otherwise = do
-          let kappa' = kappa |> kappai -- correct ?
+          let kappa' = kappa |> kappai -- correct ? seems yes
               nkappa = _nkappa dico kappa'
               z'' = z' * _T alpha a b kappa'
           when (nkappa > 1 && (S.length kappa' == 1 || kappa' !? 1 == Just 0)) $ do
@@ -174,7 +173,6 @@ summation m a b x dico n alpha i z j kappa jarray -- m inutile
             then do
               s'' <-
                 summation
-                  m
                   a
                   b
                   x
@@ -205,18 +203,18 @@ jack :: (Fractional a, MArray IOUArray a IO)
   -> IO ()
 jack alpha x dico k beta c t mu jarray kappa nkappa = do
   let i0 = max k 1
-      i1 = S.length (cleanPart mu)
+      i1 = S.length (cleanPart mu) + 1
       go :: Int -> IO ()
       go i
-        | i == i1 + 1 = return ()
+        | i == i1 = return ()
         | otherwise
---          when (length mu == i && mu!!(i-1) > 0 || mu!!(i-1) > mu!!i) $ do
          = do
-          when (S.length mu == i || mu `index` (i - 1) > mu `index` i) $ do
+          let u = mu `index` (i - 1)
+          when (S.length mu == i || u > mu `index` i) $ do
             let gamma = beta * _betaratio kappa mu i alpha
-                mu' = cleanPart $ update (i-1) (mu `index` (i - 1) - 1) mu
+                mu' = cleanPart $ update (i-1) (u - 1) mu
                 nmu = _nkappa dico mu'
-            if not (S.null mu') && S.length mu' >= i && mu' `index` (i - 1) > 0
+            if not (S.null mu') && S.length mu' >= i && u > 1
               then do
                 jack alpha x dico i gamma (c + 1) t mu' jarray kappa nkappa
               else do
@@ -263,7 +261,7 @@ hypergeom m alpha a b x = do
       arr0 =
         array ((1, 1), (pmn, n)) (line1 ++ otherlines) :: UArray (Int, Int) a
   jarray <- thaw arr0
-  s <- summation m a b x dico n alpha 0 1 m S.empty jarray
+  s <- summation a b x dico n alpha 0 1 m S.empty jarray
   return $ s + 1
 
 
