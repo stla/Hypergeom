@@ -137,7 +137,7 @@ summation a b x dico n alpha i z j kappa jarray
           let kappa' = kappa |> kappai -- correct ? seems yes
               nkappa = _nkappa dico kappa'
               z'' = z' * _T alpha a b kappa'
-              lkappa' = S.length kappa
+              lkappa' = S.length kappa'
           when (nkappa > 1 && (lkappa' == 1 || kappa' !? 1 == Just 0)) $ do
             entry <- readArray jarray (nkappa - 1, 1)
             let kap0m1' = fromIntegral (kappa' `index` 0 - 1)
@@ -187,7 +187,7 @@ jack alpha x dico k beta c t mu jarray kappa nkappa = do
             let gamma = beta * _betaratio kappa mu i alpha
                 mu' = cleanPart $ update (i-1) (u - 1) mu
                 nmu = _nkappa dico mu'
-            if not (S.null mu') && S.length mu' >= i && u > 1
+            if not (S.null mu') && S.length mu' >= i && u > 1  -- mu' `index` (i - 1) > 0
               then
                 jack alpha x dico i gamma (c + 1) t mu' jarray kappa nkappa
               else
