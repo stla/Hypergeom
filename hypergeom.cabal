@@ -26,6 +26,7 @@ library
                      , Hypergeom10
                      , Hypergeom11
                      , Hypergeom12
+                     , Hypergeom13
   build-depends:       base >= 4.7 && < 5
                      , combinat
                      , array

@@ -1,12 +1,11 @@
---- does not work for Rational ---
+--- works for Rational (doesn't use unboxed arrays) ---
 {-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Hypergeom12 (hypergeom) where
+module Hypergeom13 (hypergeom) where
 import           Control.Applicative ((<$>))
 import           Control.Monad       (when)
 import           Data.Array.IO       hiding (index)
-import           Data.Array.Unboxed  hiding (index)
+import           Data.Array          hiding (index)
 import           Data.Maybe
 import           Data.Sequence       (Seq ((:<|), (:|>), Empty), elemIndexL,
                                       index, update, (!?), (><), (|>))
@@ -48,7 +47,6 @@ _betaratio kappa mu k alpha = alpha * prod1 * prod2 * prod3
     prod1 = product $ fmap (\x -> x / (x + alpha - 1)) u
     prod2 = product $ fmap (\x -> (x + alpha) / x) v
     prod3 = product $ fmap (\x -> (x + alpha) / x) w
-
 
 _T :: (Fractional a, Eq a) => a -> [a] -> [a] -> Seq Int -> a
 _T alpha a b kappa
@@ -126,9 +124,9 @@ cleanPart kappa =
        then S.take (fromJust i) kappa
        else kappa
 
-summation :: forall a. (Eq a, Fractional a, MArray IOUArray a IO)
+summation :: forall a. (Fractional a, Eq a)
   => [a] -> [a] -> [a] -> Seq (Maybe Int) -> Int -> a -> Int
-     -> a -> Int -> Seq Int -> IOUArray (Int, Int) a -> IO a
+     -> a -> Int -> Seq Int -> IOArray (Int, Int) a -> IO a
 summation a b x dico n alpha i z j kappa jarray
  = do
   let lkappa = kappa `index` (S.length kappa - 1)
@@ -137,7 +135,7 @@ summation a b x dico n alpha i z j kappa jarray
         | i == n || i == 0 && kappai > j || i > 0 && kappai > min lkappa j =
           return s
         | otherwise = do
-          let kappa' = kappa |> kappai -- correct ? seems yes
+          let kappa' = kappa |> kappai
               nkappa = _nkappa dico kappa'
               z'' = z' * _T alpha a b kappa'
               lkappa' = S.length kappa'
@@ -174,9 +172,9 @@ summation a b x dico n alpha i z j kappa jarray
             else go (kappai + 1) z'' s'
   go 1 z 0
 
-jack :: (Fractional a, MArray IOUArray a IO)
+jack :: Fractional a
   => a -> [a] -> Seq (Maybe Int) -> Int -> a -> Int -> Int -> Seq Int
-     -> IOUArray (Int, Int) a -> Seq Int -> Int -> IO ()
+     -> IOArray (Int, Int) a -> Seq Int -> Int -> IO ()
 jack alpha x dico k beta c t mu jarray kappa nkappa = do
   let i0 = max k 1
       i1 = S.length (cleanPart mu) + 1
@@ -220,7 +218,7 @@ jack alpha x dico k beta c t mu jarray kappa nkappa = do
       writeArray jarray (nkappa, t) (entry1 + beta * x !! (t - 1) ^ c * entry2)
 
 
-hypergeoI :: forall a. (Eq a, Fractional a)
+hypergeoI :: forall a. (Fractional a, Eq a)
   => Int -> a -> [a] -> [a] -> Int -> a -> a
 hypergeoI m alpha a b n x =
   1 + summation' 0 1 m []
@@ -241,8 +239,9 @@ hypergeoI m alpha a b n x =
         else s
       s'' = s' + z'
 
+
 hypergeom ::
-     forall a. (Eq a, Fractional a, IArray UArray a, MArray IOUArray a IO)
+     forall a. (Eq a, Fractional a)
   => Int  -- truncation weight
   -> a    -- alpha parameter (usually 2)
   -> [a]  -- "upper" parameters
@@ -261,7 +260,7 @@ hypergeom m alpha a b x = do
           line1 = zipWith (\i u -> ((1, i), u)) xrange (scanl1 (+) x)
           otherlines = concatMap (\j -> [((j, i), 0) | i <- xrange]) [2 .. pmn]
           arr0 =
-            array ((1, 1), (pmn, n)) (line1 ++ otherlines) :: UArray (Int, Int) a
+            array ((1, 1), (pmn, n)) (line1 ++ otherlines)
       jarray <- thaw arr0
       s <- summation a b x dico n alpha 0 1 m S.empty jarray
       return $ s + 1
